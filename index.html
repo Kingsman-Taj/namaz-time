@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GPS Test</title>
+<style>
+body{
+  background:black;
+  color:lime;
+  font-family:monospace;
+  text-align:center;
+  padding-top:50px;
+}
+button{
+  font-size:24px;
+  padding:15px;
+}
+</style>
+</head>
+<body>
+
+<h2>GPS TEST</h2>
+
+<button onclick="getLocation()">GET LOCATION</button>
+
+<p id="result">Waiting...</p>
+
+<script>
+function getLocation() {
+  const result = document.getElementById("result");
+
+  if (!navigator.geolocation) {
+    result.innerHTML = "Geolocation not supported";
+    return;
+  }
+
+  result.innerHTML = "Getting location...";
+
+  navigator.geolocation.getCurrentPosition(
+    function(pos) {
+      result.innerHTML =
+        "Latitude: " + pos.coords.latitude +
+        "<br>Longitude: " + pos.coords.longitude +
+        "<br>Accuracy: " + pos.coords.accuracy + " m";
+    },
+    function(err) {
+      result.innerHTML =
+        "Error: " + err.message;
+    }
+  );
+}
+</script>
+
+</body>
+</html>
