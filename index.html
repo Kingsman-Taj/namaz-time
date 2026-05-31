@@ -293,7 +293,7 @@ function drawHome(){
 
         ctx.fillStyle="#ff0";
 
-        ctx.font=font(12);
+        ctx.font=font(20);
 
         ctx.fillText(
             "NEXT: "+next[0],
@@ -324,7 +324,7 @@ function drawPrayerTimes(){
 
     ];
 
-    ctx.font=font(13);
+    ctx.font=font(20);
 
     let y = sy(55);
 
@@ -354,7 +354,7 @@ function drawMakrooh(){
 
     if(!prayerData) return;
 
-    ctx.font=font(12);
+    ctx.font=font(25);
 
     ctx.fillStyle="#ff0";
 
@@ -407,7 +407,7 @@ function drawLocation(){
 
     ctx.fillStyle="#0ff";
 
-    ctx.font=font(15);
+    ctx.font=font(25);
 
     ctx.fillText(
         "LOCATION",
@@ -417,7 +417,7 @@ function drawLocation(){
 
     ctx.fillStyle="#0f0";
 
-    ctx.font=font(12);
+    ctx.font=font(20);
 
     ctx.fillText(
         latitude ? latitude.toFixed(4) : "-",
