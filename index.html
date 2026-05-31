@@ -1,56 +1,486 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GPS Test</title>
+<meta name="viewport" content="width=device-width,height=device-height,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>Prayer Times India</title>
+
 <style>
-body{
-  background:black;
-  color:lime;
-  font-family:monospace;
-  text-align:center;
-  padding-top:50px;
+html,body{
+    margin:0;
+    padding:0;
+    width:100%;
+    height:100%;
+    background:#000;
+    color:#0f0;
+    overflow:hidden;
+    font-family:monospace;
 }
-button{
-  font-size:24px;
-  padding:15px;
+
+canvas{
+    display:block;
+}
+
+#status{
+    position:absolute;
+    top:1vh;
+    left:0;
+    width:100%;
+    text-align:center;
+    color:#0ff;
+    font-size:4vw;
+    font-weight:bold;
+}
+
+#msg{
+    position:absolute;
+    bottom:1vh;
+    left:2vw;
+    right:2vw;
+    color:#ff0;
+    font-size:3vw;
 }
 </style>
 </head>
 <body>
 
-<h2>GPS TEST</h2>
+<canvas id="game"></canvas>
 
-<button onclick="getLocation()">GET LOCATION</button>
+<div id="status">
+PRAYER TIMES INDIA
+</div>
 
-<p id="result">Waiting...</p>
+<div id="msg">
+Loading...
+</div>
 
 <script>
-function getLocation() {
-  const result = document.getElementById("result");
 
-  if (!navigator.geolocation) {
-    result.innerHTML = "Geolocation not supported";
-    return;
-  }
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
-  result.innerHTML = "Getting location...";
-
-  navigator.geolocation.getCurrentPosition(
-    function(pos) {
-      result.innerHTML =
-        "Latitude: " + pos.coords.latitude +
-        "<br>Longitude: " + pos.coords.longitude +
-        "<br>Accuracy: " + pos.coords.accuracy + " m";
-    },
-    function(err) {
-      result.innerHTML =
-        "Error: " + err.message;
-    }
-  );
+function resize(){
+    canvas.width = innerWidth;
+    canvas.height = innerHeight;
 }
-</script>
+resize();
+addEventListener("resize",resize);
 
+function sx(v){ return v * canvas.width / 240; }
+function sy(v){ return v * canvas.height / 320; }
+function font(v){ return `${Math.floor(sy(v))}px monospace`; }
+
+let screen = 0;
+
+let prayerData = null;
+let locationName = "Unknown";
+let latitude = null;
+let longitude = null;
+
+const msg = document.getElementById("msg");
+
+function setMessage(t){
+    msg.innerHTML = t;
+}
+
+function saveCache(){
+    localStorage.setItem("prayer_cache", JSON.stringify({
+        prayerData,
+        locationName,
+        latitude,
+        longitude,
+        time: Date.now()
+    }));
+}
+
+function loadCache(){
+    const raw = localStorage.getItem("prayer_cache");
+
+    if(!raw) return false;
+
+    try{
+        const data = JSON.parse(raw);
+
+        prayerData = data.prayerData;
+        locationName = data.locationName;
+        latitude = data.latitude;
+        longitude = data.longitude;
+
+        return true;
+    }
+    catch(e){
+        return false;
+    }
+}
+
+function getLocation(){
+
+    setMessage("Getting location...");
+
+    navigator.geolocation.getCurrentPosition(
+
+        pos=>{
+            latitude = pos.coords.latitude;
+            longitude = pos.coords.longitude;
+
+            fetchPrayerTimes();
+        },
+
+        err=>{
+            setMessage("GPS failed. Using cache.");
+
+            if(!loadCache()){
+                setMessage("No cached data available.");
+            }
+        },
+
+        {
+            enableHighAccuracy:true,
+            timeout:15000,
+            maximumAge:0
+        }
+
+    );
+}
+
+async function fetchPrayerTimes(){
+
+    try{
+
+        setMessage("Downloading prayer times...");
+
+        const url =
+        `https://api.aladhan.com/v1/timings?latitude=${latitude}&longitude=${longitude}&method=1`;
+
+        const response = await fetch(url);
+
+        const data = await response.json();
+
+        prayerData = data.data.timings;
+
+        locationName =
+            latitude.toFixed(4)+
+            ", "+
+            longitude.toFixed(4);
+
+        saveCache();
+
+        setMessage("Prayer times updated");
+
+    }
+    catch(e){
+
+        if(loadCache()){
+            setMessage("Using cached data");
+        }
+        else{
+            setMessage("Unable to load prayer times");
+        }
+    }
+}
+
+function parseTime(t){
+
+    const p = t.split(":");
+
+    return {
+        h:parseInt(p[0]),
+        m:parseInt(p[1])
+    };
+}
+
+function currentPrayer(){
+
+    if(!prayerData) return "Loading";
+
+    const now = new Date();
+
+    const mins =
+        now.getHours()*60+
+        now.getMinutes();
+
+    const prayers = [
+
+        ["Fajr", prayerData.Fajr],
+        ["Dhuhr", prayerData.Dhuhr],
+        ["Asr", prayerData.Asr],
+        ["Maghrib", prayerData.Maghrib],
+        ["Isha", prayerData.Isha]
+
+    ];
+
+    let current = "Isha";
+
+    for(let p of prayers){
+
+        const tm = parseTime(p[1]);
+
+        const prayerMin = tm.h*60+tm.m;
+
+        if(mins >= prayerMin){
+            current = p[0];
+        }
+    }
+
+    return current;
+}
+
+function nextPrayer(){
+
+    if(!prayerData) return null;
+
+    const now = new Date();
+
+    const mins =
+        now.getHours()*60+
+        now.getMinutes();
+
+    const prayers = [
+
+        ["Fajr", prayerData.Fajr],
+        ["Dhuhr", prayerData.Dhuhr],
+        ["Asr", prayerData.Asr],
+        ["Maghrib", prayerData.Maghrib],
+        ["Isha", prayerData.Isha]
+
+    ];
+
+    for(let p of prayers){
+
+        const tm = parseTime(p[1]);
+
+        const prayerMin = tm.h*60+tm.m;
+
+        if(prayerMin > mins){
+
+            return p;
+        }
+    }
+
+    return prayers[0];
+}
+
+function drawHome(){
+
+    ctx.fillStyle="#0ff";
+    ctx.font=font(18);
+
+    ctx.fillText(
+        "CURRENT",
+        sx(55),
+        sy(80)
+    );
+
+    ctx.fillText(
+        "PRAYER",
+        sx(60),
+        sy(110)
+    );
+
+    ctx.fillStyle="#0f0";
+
+    ctx.font=font(28);
+
+    ctx.fillText(
+        currentPrayer(),
+        sx(45),
+        sy(170)
+    );
+
+    const next = nextPrayer();
+
+    if(next){
+
+        ctx.fillStyle="#ff0";
+
+        ctx.font=font(12);
+
+        ctx.fillText(
+            "NEXT: "+next[0],
+            sx(55),
+            sy(220)
+        );
+
+        ctx.fillText(
+            next[1],
+            sx(80),
+            sy(245)
+        );
+    }
+}
+
+function drawPrayerTimes(){
+
+    if(!prayerData) return;
+
+    const rows = [
+
+        ["FAJR",prayerData.Fajr],
+        ["SUNRISE",prayerData.Sunrise],
+        ["DHUHR",prayerData.Dhuhr],
+        ["ASR",prayerData.Asr],
+        ["MAGHRIB",prayerData.Maghrib],
+        ["ISHA",prayerData.Isha]
+
+    ];
+
+    ctx.font=font(13);
+
+    let y = sy(55);
+
+    for(let r of rows){
+
+        ctx.fillStyle="#0ff";
+
+        ctx.fillText(
+            r[0],
+            sx(15),
+            y
+        );
+
+        ctx.fillStyle="#0f0";
+
+        ctx.fillText(
+            r[1],
+            sx(145),
+            y
+        );
+
+        y += sy(32);
+    }
+}
+
+function drawMakrooh(){
+
+    if(!prayerData) return;
+
+    ctx.font=font(12);
+
+    ctx.fillStyle="#ff0";
+
+    ctx.fillText(
+        "MAKROOH TIMES",
+        sx(30),
+        sy(50)
+    );
+
+    ctx.fillStyle="#0ff";
+
+    ctx.fillText(
+        "After Sunrise",
+        sx(20),
+        sy(100)
+    );
+
+    ctx.fillText(
+        prayerData.Sunrise,
+        sx(150),
+        sy(100)
+    );
+
+    ctx.fillText(
+        "Before Dhuhr",
+        sx(20),
+        sy(150)
+    );
+
+    ctx.fillText(
+        prayerData.Dhuhr,
+        sx(150),
+        sy(150)
+    );
+
+    ctx.fillText(
+        "Before Sunset",
+        sx(20),
+        sy(200)
+    );
+
+    ctx.fillText(
+        prayerData.Maghrib,
+        sx(150),
+        sy(200)
+    );
+}
+
+function drawLocation(){
+
+    ctx.fillStyle="#0ff";
+
+    ctx.font=font(15);
+
+    ctx.fillText(
+        "LOCATION",
+        sx(55),
+        sy(60)
+    );
+
+    ctx.fillStyle="#0f0";
+
+    ctx.font=font(12);
+
+    ctx.fillText(
+        latitude ? latitude.toFixed(4) : "-",
+        sx(20),
+        sy(130)
+    );
+
+    ctx.fillText(
+        longitude ? longitude.toFixed(4) : "-",
+        sx(20),
+        sy(170)
+    );
+}
+
+document.addEventListener("keydown",e=>{
+
+    if(e.key==="2"){
+        screen=(screen+3)%4;
+    }
+
+    if(e.key==="8"){
+        screen=(screen+1)%4;
+    }
+
+    if(e.key==="5" || e.key==="Enter"){
+        getLocation();
+    }
+
+});
+
+function draw(){
+
+    ctx.fillStyle="#000";
+    ctx.fillRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+
+    if(screen===0) drawHome();
+    if(screen===1) drawPrayerTimes();
+    if(screen===2) drawMakrooh();
+    if(screen===3) drawLocation();
+}
+
+function loop(){
+
+    draw();
+
+    requestAnimationFrame(loop);
+}
+
+if(!loadCache()){
+    getLocation();
+}
+
+loop();
+
+setMessage(
+"2/8=Change Screen | 5=Refresh"
+);
+
+</script>
 </body>
 </html>
